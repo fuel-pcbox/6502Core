@@ -3,34 +3,47 @@
 
 #include "common.h"
 
+enum CycleType
+{
+    Read,
+    Write
+};
+
 struct m6502
 {
-  //Registers
+    //Registers
 
-  extern u8 a,x,y,s;
-  extern u8 flags;
-  extern u16 pc;
-  
-  //Read/Write callbacks
-  
-  extern function<u8(u16)> rb;
-  extern function<void(u16,u8)> wb;
-  
-  //Pin callbacks
-  extern function<bool()> sync_r; //ONLY HERE BECAUSE APPLE 3 WILL USE IT.
-  
-  extern function<void(bool)> reset_w;
-  
-  extern function<void(bool)> irq_w;
-  extern function<void(bool)> nmi_w;
-  
-  extern function<void(bool)> rdy_w;
+    u8 a,x,y,s;
+    u8 flags;
+    u16 pc;
 
-  extern function<void(bool)> so_w;
-  
-  void init();
-  
-  void tick();
+    bool sync;
+    bool reset;
+    bool irq;
+    bool nmi;
+    bool rdy;
+    bool so;
+
+    bool execing;
+
+    int cycle;
+    CycleType cycletype;
+
+    u8 op;
+
+    u8 tmp1;
+    u8 tmp2;
+    u16 tmp3;
+    u16 tmp4;
+
+    //Read/Write callbacks
+
+    function<u8(u16)> rb;
+    function<void(u16,u8)> wb;
+
+    void init();
+
+    void tick();
 };
 
 #endif //M6502_H
