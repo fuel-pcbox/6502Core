@@ -1,11 +1,13 @@
-#include "m6502.h"
+#include "stdafx.h"
 
 void m6502::init()
 {
     reset = true;
+	irq = true;
     rdy = true;
     cycle = 0;
     execing = false;
+	phi2 = false;
     cycletype = CycleType::Read;
 
     //Following are from the Visual 6502 project.
@@ -16,6 +18,12 @@ void m6502::init()
     flags = 0x02;
     op = 0;
     pc=0;
+}
+
+void m6502::halftick()
+{
+	if(phi2) tick();
+	phi2 = !phi2;
 }
 
 void m6502::tick()
@@ -65,6 +73,10 @@ void m6502::tick()
     }
     else if(!execing)
     {
+		if(!irq)
+		{
+			pc = (rb(0xFFFB) << 8) | rb(0xFFFA);
+		}
         op = rb(pc);
         pc++;
         sync = true;
@@ -468,6 +480,329 @@ void m6502::tick()
         }
         break;
     }
+	case 0x09:
+    {
+        switch(cycle)
+        {
+        case 0:
+        {
+            cycle++;
+            cycletype = CycleType::Read;
+            break;
+        }
+        case 1:
+        {
+            a |= rb(pc);
+            pc++;
+            if(!a) flags |= 0x02;
+            else flags &= 0xFD;
+            if(a & 0x80) flags |= 0x80;
+            else flags &= 0x7F;
+            cycle=0;
+            execing = false;
+            cycletype = CycleType::Read;
+            break;
+        }
+        }
+        break;
+    }
+	case 0x10:
+	{
+		switch(cycle)
+		{
+		case 0:
+		{
+			cycle++;
+			cycletype = CycleType::Read;
+			break;
+		}
+		case 1:
+		{
+			tmp1 = rb(pc);
+			pc++;
+			cycle++;
+			cycletype = CycleType::Read;
+			break;
+		}
+		case 2:
+		{
+			rb(pc);
+			if(!(flags & 0x80))
+			{
+				tmp3 = pc + tmp1;
+				pc = (pc & 0xFF00) | ((pc + tmp1) & 0xFF);
+				cycle++;
+				cycletype = CycleType::Read;
+			}
+			else
+			{
+				pc++;
+				cycle=0;
+				execing=false;
+				cycletype = CycleType::Read;
+			}
+			break;
+		}
+		case 3:
+		{
+			rb(pc);
+			if(pc!=tmp3)
+			{
+				pc = tmp3;
+				cycle++;
+				cycletype = CycleType::Read;
+			}
+			else
+			{
+				cycle=0;
+				execing=false;
+				cycletype = CycleType::Read;
+			}
+			break;
+		}
+		case 4:
+		{
+			rb(pc);
+			cycle=0;
+			execing=false;
+			cycletype = CycleType::Read;
+			break;
+		}
+		}
+		break;
+	}
+	case 0x18:
+    {
+        switch(cycle)
+        {
+        case 0:
+        {
+            cycle++;
+            cycletype = CycleType::Read;
+            break;
+        }
+        case 1:
+        {
+            rb(pc);
+            flags &= 0xFE;
+            cycle=0;
+            execing = false;
+            cycletype = CycleType::Read;
+            break;
+        }
+        }
+        break;
+    }
+	case 0x20:
+	{
+		switch(cycle)
+		{
+		case 0:
+		{
+			cycle++;
+			cycletype = CycleType::Read;
+			break;
+		}
+		case 1:
+		{
+			tmp1 = rb(pc);
+			pc++;
+			cycle++;
+			cycletype = CycleType::Read;
+			break;
+		}
+		case 2:
+		{
+			rb(s + 0x100);
+			cycle++;
+			cycletype = CycleType::Write;
+			break;
+		}
+		case 3:
+		{
+			wb(s + 0x100,pc>>8);
+			s--;
+			cycle++;
+			cycletype = CycleType::Write;
+			break;
+		}
+		case 4:
+		{
+			wb(s + 0x100,pc&0xFF);
+			s--;
+			cycle++;
+			cycletype = CycleType::Read;
+			break;
+		}
+		case 5:
+		{
+			pc = tmp1 | (rb(pc)<<8);
+			cycle=0;
+            execing = false;
+            cycletype = CycleType::Read;
+			break;
+		}
+		}
+		break;
+	}
+	case 0x29:
+    {
+        switch(cycle)
+        {
+        case 0:
+        {
+            cycle++;
+            cycletype = CycleType::Read;
+            break;
+        }
+        case 1:
+        {
+            a &= rb(pc);
+            pc++;
+            if(!a) flags |= 0x02;
+            else flags &= 0xFD;
+            if(a & 0x80) flags |= 0x80;
+            else flags &= 0x7F;
+            cycle=0;
+            execing = false;
+            cycletype = CycleType::Read;
+            break;
+        }
+        }
+        break;
+    }
+	case 0x2A:
+    {
+        switch(cycle)
+        {
+        case 0:
+        {
+            cycle++;
+            cycletype = CycleType::Read;
+            break;
+        }
+        case 1:
+        {
+            rb(pc);
+			u8 tmp = a;
+            a = (a << 1) | (flags & 1);
+			if(!a) flags |= 0x02;
+			else flags &= 0xFD;
+			if(tmp & 0x80) flags |= 0x01;
+			else flags &= 0xFE;
+			if(a & 0x80) flags |= 0x80;
+			else flags &= 0x7F;
+            cycle=0;
+            execing = false;
+            cycletype = CycleType::Read;
+            break;
+        }
+        }
+        break;
+    }
+	case 0x4C:
+    {
+        switch(cycle)
+        {
+        case 0:
+        {
+            cycle++;
+            cycletype = CycleType::Read;
+            break;
+        }
+        case 1:
+        {
+            tmp1 = rb(pc);
+			pc++;
+            cycle++;
+            cycletype = CycleType::Read;
+            break;
+        }
+        case 2:
+        {
+			pc = (rb(pc)<<8) | tmp1;
+            cycle=0;
+            execing=false;
+            cycletype = CycleType::Read;
+            break;
+        }
+        }
+        break;
+    }
+	case 0x58:
+    {
+        switch(cycle)
+        {
+        case 0:
+        {
+            cycle++;
+            cycletype = CycleType::Read;
+            break;
+        }
+        case 1:
+        {
+            rb(pc);
+            flags &= 0xFB;
+            cycle=0;
+            execing = false;
+            cycletype = CycleType::Read;
+            break;
+        }
+        }
+        break;
+    }
+	case 0x60:
+	{
+		switch(cycle)
+		{
+		case 0:
+		{
+			cycle++;
+			cycletype = CycleType::Read;
+			break;
+		}
+		case 1:
+		{
+			rb(pc);
+			cycle++;
+			cycletype = CycleType::Read;
+			break;
+		}
+		case 2:
+		{
+			rb(s + 0x100);
+			s++;
+			cycle++;
+			cycletype = CycleType::Write;
+			break;
+		}
+		case 3:
+		{
+			pc = (pc & 0xFF00) | rb(s + 0x100);
+			cycle++;
+			cycletype = CycleType::Write;
+			break;
+		}
+		case 4:
+		{
+			pc = (pc & 0xFF) | (rb(s + 0x100) << 8);
+			s--;
+			cycle++;
+			cycletype = CycleType::Read;
+			break;
+		}
+		case 5:
+		{
+			rb(pc);
+			pc++;
+			cycle=0;
+            execing = false;
+            cycletype = CycleType::Read;
+			break;
+		}
+		}
+		break;
+	}
     case 0x78:
     {
         switch(cycle)
@@ -482,11 +817,346 @@ void m6502::tick()
         {
             rb(pc);
             flags |= 0x04;
-            cycle++;
+            cycle=0;
             execing = false;
             cycletype = CycleType::Read;
             break;
         }
+        }
+        break;
+    }
+	case 0x84:
+    {
+        switch(cycle)
+        {
+        case 0:
+        {
+            cycle++;
+            cycletype = CycleType::Read;
+            break;
+        }
+        case 1:
+        {
+            tmp1 = rb(pc);
+			pc++;
+            cycle++;
+            cycletype = CycleType::Write;
+            break;
+        }
+		case 3:
+		{
+			wb(tmp1,y);
+			cycle=0;
+            execing = false;
+            cycletype = CycleType::Read;
+			break;
+		}
+        }
+        break;
+    }
+	case 0x85:
+    {
+        switch(cycle)
+        {
+        case 0:
+        {
+            cycle++;
+            cycletype = CycleType::Read;
+            break;
+        }
+        case 1:
+        {
+            tmp1 = rb(pc);
+			pc++;
+            cycle++;
+            cycletype = CycleType::Write;
+            break;
+        }
+		case 3:
+		{
+			wb(tmp1,a);
+			cycle=0;
+            execing = false;
+            cycletype = CycleType::Read;
+			break;
+		}
+        }
+        break;
+    }
+	case 0x86:
+    {
+        switch(cycle)
+        {
+        case 0:
+        {
+            cycle++;
+            cycletype = CycleType::Read;
+            break;
+        }
+        case 1:
+        {
+            tmp1 = rb(pc);
+			pc++;
+            cycle++;
+            cycletype = CycleType::Write;
+            break;
+        }
+		case 3:
+		{
+			wb(tmp1,x);
+			cycle=0;
+            execing = false;
+            cycletype = CycleType::Read;
+			break;
+		}
+        }
+        break;
+    }
+	case 0x88:
+    {
+        switch(cycle)
+        {
+        case 0:
+        {
+            cycle++;
+            cycletype = CycleType::Read;
+            break;
+        }
+        case 1:
+        {
+            rb(pc);
+			y--;
+            if(!y) flags |= 0x02;
+			else flags &= 0xFD;
+			if(y & 0x80) flags |= 0x80;
+			else flags &= 0xFD;
+            cycle=0;
+            execing = false;
+            cycletype = CycleType::Read;
+            break;
+        }
+        }
+        break;
+    }
+	case 0x8A:
+    {
+        switch(cycle)
+        {
+        case 0:
+        {
+            cycle++;
+            cycletype = CycleType::Read;
+            break;
+        }
+        case 1:
+        {
+            a = x;
+            if(!a) flags |= 0x02;
+            else flags &= 0xFD;
+            if(a & 0x80) flags |= 0x80;
+            else flags &= 0x7F;
+            cycle=0;
+            execing = false;
+            cycletype = CycleType::Read;
+            break;
+        }
+        }
+        break;
+    }
+	case 0x8D:
+    {
+        switch(cycle)
+        {
+        case 0:
+        {
+            cycle++;
+            cycletype = CycleType::Read;
+            break;
+        }
+        case 1:
+        {
+            tmp3 = rb(pc);
+			pc++;
+            cycle++;
+            cycletype = CycleType::Read;
+            break;
+        }
+		case 2:
+        {
+            tmp3 |= rb(pc) << 8;
+			pc++;
+            cycle++;
+            cycletype = CycleType::Write;
+            break;
+        }
+		case 3:
+		{
+			wb(tmp3,a);
+			cycle=0;
+            execing = false;
+            cycletype = CycleType::Read;
+			break;
+		}
+        }
+        break;
+    }
+	case 0x8E:
+    {
+        switch(cycle)
+        {
+        case 0:
+        {
+            cycle++;
+            cycletype = CycleType::Read;
+            break;
+        }
+        case 1:
+        {
+            tmp3 = rb(pc);
+			pc++;
+            cycle++;
+            cycletype = CycleType::Read;
+            break;
+        }
+		case 2:
+        {
+            tmp3 |= rb(pc) << 8;
+			pc++;
+            cycle++;
+            cycletype = CycleType::Write;
+            break;
+        }
+		case 3:
+		{
+			wb(tmp3,x);
+			cycle=0;
+            execing = false;
+            cycletype = CycleType::Read;
+			break;
+		}
+        }
+        break;
+    }
+	case 0x91:
+    {
+        switch(cycle)
+        {
+        case 0:
+        {
+            cycle++;
+            cycletype = CycleType::Read;
+            break;
+        }
+		case 1:
+		{
+			tmp1 = rb(pc);
+			pc++;
+			cycle++;
+            cycletype = CycleType::Read;
+			break;
+		}
+		case 2:
+		{
+			tmp3 = rb(tmp1);
+			cycle++;
+            cycletype = CycleType::Read;
+			break;
+		}
+		case 3:
+		{
+			tmp3 |= rb(tmp1+1)<<8;
+			tmp4 = tmp3 + y;
+			tmp3 = (tmp3 & 0xFF00) | ((tmp3 + y) & 0xFF);
+			cycle++;
+            cycletype = CycleType::Read;
+			break;
+		}
+		case 4:
+		{
+			rb(tmp3);
+			cycle++;
+			cycletype = CycleType::Read;
+			break;
+		}
+		case 5:
+		{
+			wb(tmp4,a);
+			cycle=0;
+			execing=false;
+			cycletype = CycleType::Read;
+			break;
+		}
+		}
+		break;
+	}
+	case 0x98:
+    {
+        switch(cycle)
+        {
+        case 0:
+        {
+            cycle++;
+            cycletype = CycleType::Read;
+            break;
+        }
+        case 1:
+        {
+            a = y;
+            if(!a) flags |= 0x02;
+            else flags &= 0xFD;
+            if(a & 0x80) flags |= 0x80;
+            else flags &= 0x7F;
+            cycle=0;
+            execing = false;
+            cycletype = CycleType::Read;
+            break;
+        }
+        }
+        break;
+    }
+	case 0x99:
+    {
+        switch(cycle)
+        {
+        case 0:
+        {
+            cycle++;
+            cycletype = CycleType::Read;
+            break;
+        }
+        case 1:
+        {
+            tmp3 = rb(pc);
+			pc++;
+            cycle++;
+            cycletype = CycleType::Read;
+            break;
+        }
+		case 2:
+        {
+            tmp3 |= rb(pc) << 8;
+			tmp4 = tmp3 + y;
+			tmp3 = (tmp3 & 0xFF00) | ((tmp3 + y) & 0xFF);
+			pc++;
+            cycle++;
+            cycletype = CycleType::Read;
+            break;
+        }
+		case 3:
+		{
+			rb(tmp3);
+			cycle++;
+            cycletype = CycleType::Write;
+			break;
+		}
+		case 4:
+		{
+			wb(tmp4,a);
+			cycle=0;
+            execing = false;
+            cycletype = CycleType::Read;
+			break;
+		}
         }
         break;
     }
@@ -504,7 +1174,33 @@ void m6502::tick()
         {
             rb(pc);
             s = x;
+            cycle=0;
+            execing = false;
+            cycletype = CycleType::Read;
+            break;
+        }
+        }
+        break;
+    }
+	case 0xA0:
+    {
+        switch(cycle)
+        {
+        case 0:
+        {
             cycle++;
+            cycletype = CycleType::Read;
+            break;
+        }
+        case 1:
+        {
+            y = rb(pc);
+            pc++;
+            if(!y) flags |= 0x02;
+            else flags &= 0xFD;
+            if(y & 0x80) flags |= 0x80;
+            else flags &= 0x7F;
+            cycle=0;
             execing = false;
             cycletype = CycleType::Read;
             break;
@@ -530,7 +1226,7 @@ void m6502::tick()
             else flags &= 0xFD;
             if(x & 0x80) flags |= 0x80;
             else flags &= 0x7F;
-            cycle++;
+            cycle=0;
             execing = false;
             cycletype = CycleType::Read;
             break;
@@ -538,6 +1234,573 @@ void m6502::tick()
         }
         break;
     }
+	case 0xA8:
+    {
+        switch(cycle)
+        {
+        case 0:
+        {
+            cycle++;
+            cycletype = CycleType::Read;
+            break;
+        }
+        case 1:
+        {
+            y = a;
+            if(!y) flags |= 0x02;
+            else flags &= 0xFD;
+            if(y & 0x80) flags |= 0x80;
+            else flags &= 0x7F;
+            cycle=0;
+            execing = false;
+            cycletype = CycleType::Read;
+            break;
+        }
+        }
+        break;
+    }
+	case 0xA9:
+    {
+        switch(cycle)
+        {
+        case 0:
+        {
+            cycle++;
+            cycletype = CycleType::Read;
+            break;
+        }
+        case 1:
+        {
+            a = rb(pc);
+            pc++;
+            if(!a) flags |= 0x02;
+            else flags &= 0xFD;
+            if(a & 0x80) flags |= 0x80;
+            else flags &= 0x7F;
+            cycle=0;
+            execing = false;
+            cycletype = CycleType::Read;
+            break;
+        }
+        }
+        break;
+    }
+	case 0xAA:
+    {
+        switch(cycle)
+        {
+        case 0:
+        {
+            cycle++;
+            cycletype = CycleType::Read;
+            break;
+        }
+        case 1:
+        {
+            x = a;
+            if(!x) flags |= 0x02;
+            else flags &= 0xFD;
+            if(x & 0x80) flags |= 0x80;
+            else flags &= 0x7F;
+            cycle=0;
+            execing = false;
+            cycletype = CycleType::Read;
+            break;
+        }
+        }
+        break;
+    }
+	case 0xAD:
+    {
+        switch(cycle)
+        {
+        case 0:
+        {
+            cycle++;
+            cycletype = CycleType::Read;
+            break;
+        }
+        case 1:
+        {
+            tmp3 = rb(pc);
+			pc++;
+            cycle++;
+            cycletype = CycleType::Read;
+            break;
+        }
+		case 2:
+        {
+            tmp3 |= rb(pc) << 8;
+			pc++;
+            cycle++;
+            cycletype = CycleType::Read;
+            break;
+        }
+		case 3:
+		{
+			a = rb(tmp3);
+			if(!a) flags |= 0x02;
+			else flags &= 0xFD;
+			if(a & 0x80) flags |= 0x80;
+			else flags &= 0x7F;
+			cycle=0;
+            execing = false;
+            cycletype = CycleType::Read;
+			break;
+		}
+        }
+        break;
+    }
+	case 0xB0:
+	{
+		switch(cycle)
+		{
+		case 0:
+		{
+			cycle++;
+			cycletype = CycleType::Read;
+			break;
+		}
+		case 1:
+		{
+			tmp1 = rb(pc);
+			pc++;
+			cycle++;
+			cycletype = CycleType::Read;
+			break;
+		}
+		case 2:
+		{
+			rb(pc);
+			if(flags & 0x01)
+			{
+				tmp3 = pc + tmp1;
+				pc = (pc & 0xFF00) | ((pc + tmp1) & 0xFF);
+				cycle++;
+				cycletype = CycleType::Read;
+			}
+			else
+			{
+				pc++;
+				cycle=0;
+				execing=false;
+				cycletype = CycleType::Read;
+			}
+			break;
+		}
+		case 3:
+		{
+			rb(pc);
+			if(pc!=tmp3)
+			{
+				pc = tmp3;
+				cycle++;
+				cycletype = CycleType::Read;
+			}
+			else
+			{
+				cycle=0;
+				execing=false;
+				cycletype = CycleType::Read;
+			}
+			break;
+		}
+		case 4:
+		{
+			rb(pc);
+			cycle=0;
+			execing=false;
+			cycletype = CycleType::Read;
+			break;
+		}
+		}
+		break;
+	}
+	case 0xB1:
+    {
+        switch(cycle)
+        {
+        case 0:
+        {
+            cycle++;
+            cycletype = CycleType::Read;
+            break;
+        }
+		case 1:
+		{
+			tmp1 = rb(pc);
+			pc++;
+			cycle++;
+            cycletype = CycleType::Read;
+			break;
+		}
+		case 2:
+		{
+			tmp3 = rb(tmp1);
+			cycle++;
+            cycletype = CycleType::Read;
+			break;
+		}
+		case 3:
+		{
+			tmp3 |= rb(tmp1+1)<<8;
+			tmp4 = tmp3 + y;
+			tmp3 = (tmp3 & 0xFF00) | ((tmp3 + y) & 0xFF);
+			cycle++;
+            cycletype = CycleType::Read;
+			break;
+		}
+		case 4:
+		{
+			a = rb(tmp3);
+			if(!a) flags |= 0x02;
+			else flags &= 0xFD;
+			if(a & 0x80) flags |= 0x80;
+			else flags &= 0x7F;
+			if(tmp3 != tmp4)
+			{
+				cycle++;
+				cycletype = CycleType::Read;
+			}
+			else
+			{
+				cycle=0;
+				execing=false;
+				cycletype = CycleType::Read;
+			}
+			break;
+		}
+		case 5:
+		{
+			a = rb(tmp4);
+			if(!a) flags |= 0x02;
+			else flags &= 0xFD;
+			if(a & 0x80) flags |= 0x80;
+			else flags &= 0x7F;
+			cycle=0;
+			execing=false;
+			cycletype = CycleType::Read;
+			break;
+		}
+		}
+		break;
+	}
+	case 0xB9:
+	{
+		switch(cycle)
+		{
+		case 0:
+		{
+			cycle++;
+			cycletype = CycleType::Read;
+			break;
+		}
+		case 1:
+		{
+			tmp3 = rb(pc);
+			pc++;
+			cycle++;
+			cycletype = CycleType::Read;
+			break;
+		}
+		case 2:
+		{
+			tmp3 |= (rb(pc)<<8);
+			tmp4 = tmp3 + y;
+			tmp3 = (tmp3 & 0xFF00) | ((tmp3 + y) & 0xFF);
+			pc++;
+			cycle++;
+			cycletype = CycleType::Read;
+			break;
+		}
+		case 3:
+		{
+			a = rb(tmp3);
+			if(!a) flags |= 0x02;
+			else flags &= 0xFD;
+			if(a & 0x80) flags |= 0x80;
+			else flags &= 0x7F;
+			if(tmp3 != tmp4)
+			{
+				cycle++;
+				cycletype = CycleType::Read;
+			}
+			else
+			{
+				cycle=0;
+				execing=false;
+				cycletype = CycleType::Read;
+			}
+			break;
+		}
+		case 4:
+		{
+			a = rb(tmp4);
+			if(!a) flags |= 0x02;
+			else flags &= 0xFD;
+			if(a & 0x80) flags |= 0x80;
+			else flags &= 0x7F;
+			cycle=0;
+			execing=false;
+			cycletype = CycleType::Read;
+			break;
+		}
+		}
+		break;
+	}
+	case 0xBD:
+	{
+		switch(cycle)
+		{
+		case 0:
+		{
+			cycle++;
+			cycletype = CycleType::Read;
+			break;
+		}
+		case 1:
+		{
+			tmp3 = rb(pc);
+			pc++;
+			cycle++;
+			cycletype = CycleType::Read;
+			break;
+		}
+		case 2:
+		{
+			tmp3 |= (rb(pc)<<8);
+			tmp4 = tmp3 + x;
+			tmp3 = (tmp3 & 0xFF00) | ((tmp3 + x) & 0xFF);
+			pc++;
+			cycle++;
+			cycletype = CycleType::Read;
+			break;
+		}
+		case 3:
+		{
+			a = rb(tmp3);
+			if(!a) flags |= 0x02;
+			else flags &= 0xFD;
+			if(a & 0x80) flags |= 0x80;
+			else flags &= 0x7F;
+			if(tmp3 != tmp4)
+			{
+				cycle++;
+				cycletype = CycleType::Read;
+			}
+			else
+			{
+				cycle=0;
+				execing=false;
+				cycletype = CycleType::Read;
+			}
+			break;
+		}
+		case 4:
+		{
+			a = rb(tmp4);
+			if(!a) flags |= 0x02;
+			else flags &= 0xFD;
+			if(a & 0x80) flags |= 0x80;
+			else flags &= 0x7F;
+			cycle=0;
+			execing=false;
+			cycletype = CycleType::Read;
+			break;
+		}
+		}
+		break;
+	}
+	case 0xC8:
+    {
+        switch(cycle)
+        {
+        case 0:
+        {
+            cycle++;
+            cycletype = CycleType::Read;
+            break;
+        }
+        case 1:
+        {
+            rb(pc);
+			y++;
+            if(!y) flags |= 0x02;
+			else flags &= 0xFD;
+			if(y & 0x80) flags |= 0x80;
+			else flags &= 0xFD;
+            cycle=0;
+            execing = false;
+            cycletype = CycleType::Read;
+            break;
+        }
+        }
+        break;
+    }
+	case 0xCA:
+    {
+        switch(cycle)
+        {
+        case 0:
+        {
+            cycle++;
+            cycletype = CycleType::Read;
+            break;
+        }
+        case 1:
+        {
+            rb(pc);
+			x--;
+            if(!x) flags |= 0x02;
+			else flags &= 0xFD;
+			if(x & 0x80) flags |= 0x80;
+			else flags &= 0xFD;
+            cycle=0;
+            execing = false;
+            cycletype = CycleType::Read;
+            break;
+        }
+        }
+        break;
+    }
+	case 0xD0:
+	{
+		switch(cycle)
+		{
+		case 0:
+		{
+			cycle++;
+			cycletype = CycleType::Read;
+			break;
+		}
+		case 1:
+		{
+			tmp1 = rb(pc);
+			pc++;
+			cycle++;
+			cycletype = CycleType::Read;
+			break;
+		}
+		case 2:
+		{
+			rb(pc);
+			if(!(flags & 0x02))
+			{
+				tmp3 = pc + tmp1;
+				pc = (pc & 0xFF00) | ((pc + tmp1) & 0xFF);
+				cycle++;
+				cycletype = CycleType::Read;
+			}
+			else
+			{
+				pc++;
+				cycle=0;
+				execing=false;
+				cycletype = CycleType::Read;
+			}
+			break;
+		}
+		case 3:
+		{
+			rb(pc);
+			if(pc!=tmp3)
+			{
+				pc = tmp3;
+				cycle++;
+				cycletype = CycleType::Read;
+			}
+			else
+			{
+				cycle=0;
+				execing=false;
+				cycletype = CycleType::Read;
+			}
+			break;
+		}
+		case 4:
+		{
+			rb(pc);
+			cycle=0;
+			execing=false;
+			cycletype = CycleType::Read;
+			break;
+		}
+		}
+		break;
+	}
+	case 0xD1:
+    {
+        switch(cycle)
+        {
+        case 0:
+        {
+            cycle++;
+            cycletype = CycleType::Read;
+            break;
+        }
+		case 1:
+		{
+			tmp1 = rb(pc);
+			pc++;
+			cycle++;
+            cycletype = CycleType::Read;
+			break;
+		}
+		case 2:
+		{
+			tmp3 = rb(tmp1);
+			cycle++;
+            cycletype = CycleType::Read;
+			break;
+		}
+		case 3:
+		{
+			tmp3 |= rb(tmp1+1)<<8;
+			tmp4 = tmp3 + y;
+			tmp3 = (tmp3 & 0xFF00) | ((tmp3 + y) & 0xFF);
+			cycle++;
+            cycletype = CycleType::Read;
+			break;
+		}
+		case 4:
+		{
+			tmp2 = a - rb(tmp3);
+			if(!tmp2) flags |= 0x02;
+			else flags &= 0xFD;
+			if(tmp2 & 0x80) flags |= 0x80;
+			else flags &= 0x7F;
+			if(tmp2>a) flags |= 0x01;
+			else flags &= 0xFE;
+			if(tmp3 != tmp4)
+			{
+				cycle++;
+				cycletype = CycleType::Read;
+			}
+			else
+			{
+				cycle=0;
+				execing=false;
+				cycletype = CycleType::Read;
+			}
+			break;
+		}
+		case 5:
+		{
+			tmp2 = a - rb(tmp4);
+			if(!tmp2) flags |= 0x02;
+			else flags &= 0xFD;
+			if(tmp2 & 0x80) flags |= 0x80;
+			else flags &= 0x7F;
+			if(tmp2>a) flags |= 0x01;
+			else flags &= 0xFE;
+			cycle=0;
+			execing=false;
+			cycletype = CycleType::Read;
+			break;
+		}
+		}
+		break;
+	}
     case 0xD8:
     {
         switch(cycle)
@@ -552,7 +1815,7 @@ void m6502::tick()
         {
             rb(pc);
             flags |= 0x08;
-            cycle++;
+            cycle=0;
             execing = false;
             cycletype = CycleType::Read;
             break;
@@ -560,5 +1823,185 @@ void m6502::tick()
         }
         break;
     }
+	case 0xDD:
+	{
+		switch(cycle)
+		{
+		case 0:
+		{
+			cycle++;
+			cycletype = CycleType::Read;
+			break;
+		}
+		case 1:
+		{
+			tmp3 = rb(pc);
+			pc++;
+			cycle++;
+			cycletype = CycleType::Read;
+			break;
+		}
+		case 2:
+		{
+			tmp3 |= (rb(pc)<<8);
+			tmp4 = tmp3 + x;
+			tmp3 = (tmp3 & 0xFF00) | ((tmp3 + x) & 0xFF);
+			pc++;
+			cycle++;
+			cycletype = CycleType::Read;
+			break;
+		}
+		case 3:
+		{
+			u8 tmp = a - rb(tmp3);
+			if(!tmp) flags |= 0x02;
+			else flags &= 0xFD;
+			if(tmp & 0x80) flags |= 0x80;
+			else flags &= 0x7F;
+			if(tmp>a) flags |= 0x01;
+			else flags &= 0xFE;
+			if(tmp3 != tmp4)
+			{
+				cycle++;
+				cycletype = CycleType::Read;
+			}
+			else
+			{
+				cycle=0;
+				execing=false;
+				cycletype = CycleType::Read;
+			}
+			break;
+		}
+		case 4:
+		{
+			u8 tmp = a - rb(tmp4);
+			if(!tmp) flags |= 0x02;
+			else flags &= 0xFD;
+			if(tmp & 0x80) flags |= 0x80;
+			else flags &= 0x7F;
+			if(tmp>a) flags |= 0x01;
+			else flags &= 0xFE;
+			cycle=0;
+			execing=false;
+			cycletype = CycleType::Read;
+			break;
+		}
+		}
+		break;
+	}
+	case 0xE6:
+    {
+        switch(cycle)
+        {
+        case 0:
+        {
+            cycle++;
+            cycletype = CycleType::Read;
+            break;
+        }
+        case 1:
+        {
+            tmp1 = rb(pc);
+			pc++;
+            cycle++;
+            cycletype = CycleType::Read;
+            break;
+        }
+		case 2:
+		{
+			tmp2 = rb(tmp1);
+			cycle++;
+            cycletype = CycleType::Write;
+			break;
+		}
+		case 3:
+		{
+			wb(tmp1,tmp2);
+			tmp2++;
+			if(!tmp2) flags |= 0x02;
+			else flags &= 0xFD;
+			if(tmp2 & 0x80) flags |= 0x80;
+			else flags &= 0x7F;
+			cycle++;
+            cycletype = CycleType::Write;
+			break;
+		}
+		case 4:
+		{
+			wb(tmp1,tmp2);
+			cycle=0;
+            execing = false;
+            cycletype = CycleType::Read;
+			break;
+		}
+        }
+        break;
+    }
+	case 0xF0:
+	{
+		switch(cycle)
+		{
+		case 0:
+		{
+			cycle++;
+			cycletype = CycleType::Read;
+			break;
+		}
+		case 1:
+		{
+			tmp1 = rb(pc);
+			pc++;
+			cycle++;
+			cycletype = CycleType::Read;
+			break;
+		}
+		case 2:
+		{
+			rb(pc);
+			if(flags & 0x02)
+			{
+				tmp3 = pc + tmp1;
+				pc = (pc & 0xFF00) | ((pc + tmp1) & 0xFF);
+				cycle++;
+				cycletype = CycleType::Read;
+			}
+			else
+			{
+				pc++;
+				cycle=0;
+				execing=false;
+				cycletype = CycleType::Read;
+			}
+			break;
+		}
+		case 3:
+		{
+			rb(pc);
+			if(pc!=tmp3)
+			{
+				pc = tmp3;
+				cycle++;
+				cycletype = CycleType::Read;
+			}
+			else
+			{
+				cycle=0;
+				execing=false;
+				cycletype = CycleType::Read;
+			}
+			break;
+		}
+		case 4:
+		{
+			rb(pc);
+			cycle=0;
+			execing=false;
+			cycletype = CycleType::Read;
+			break;
+		}
+		}
+		break;
+	}
     }
 }
