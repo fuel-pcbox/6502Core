@@ -529,8 +529,8 @@ void m6502::tick()
 			rb(pc);
 			if(!(flags & 0x80))
 			{
-				tmp3 = pc + tmp1;
-				pc = (pc & 0xFF00) | ((pc + tmp1) & 0xFF);
+				tmp3 = pc + (s8)tmp1;
+				pc = (pc & 0xFF00) | ((pc + (s8)tmp1) & 0xFF);
 				cycle++;
 				cycletype = CycleType::Read;
 			}
@@ -779,6 +779,7 @@ void m6502::tick()
 		case 3:
 		{
 			pc = (pc & 0xFF00) | rb(s + 0x100);
+			s++;
 			cycle++;
 			cycletype = CycleType::Write;
 			break;
@@ -786,7 +787,6 @@ void m6502::tick()
 		case 4:
 		{
 			pc = (pc & 0xFF) | (rb(s + 0x100) << 8);
-			s--;
 			cycle++;
 			cycletype = CycleType::Read;
 			break;
@@ -843,7 +843,7 @@ void m6502::tick()
             cycletype = CycleType::Write;
             break;
         }
-		case 3:
+		case 2:
 		{
 			wb(tmp1,y);
 			cycle=0;
@@ -872,7 +872,7 @@ void m6502::tick()
             cycletype = CycleType::Write;
             break;
         }
-		case 3:
+		case 2:
 		{
 			wb(tmp1,a);
 			cycle=0;
@@ -901,7 +901,7 @@ void m6502::tick()
             cycletype = CycleType::Write;
             break;
         }
-		case 3:
+		case 2:
 		{
 			wb(tmp1,x);
 			cycle=0;
@@ -1374,8 +1374,8 @@ void m6502::tick()
 			rb(pc);
 			if(flags & 0x01)
 			{
-				tmp3 = pc + tmp1;
-				pc = (pc & 0xFF00) | ((pc + tmp1) & 0xFF);
+				tmp3 = pc + (s8)tmp1;
+				pc = (pc & 0xFF00) | ((pc + (s8)tmp1) & 0xFF);
 				cycle++;
 				cycletype = CycleType::Read;
 			}
@@ -1625,10 +1625,10 @@ void m6502::tick()
         {
             rb(pc);
 			y++;
-            if(!y) flags |= 0x02;
-			else flags &= 0xFD;
+            if(!y) flags |= 0x03;
+			else flags &= 0xFC;
 			if(y & 0x80) flags |= 0x80;
-			else flags &= 0xFD;
+			else flags &= 0x7F;
             cycle=0;
             execing = false;
             cycletype = CycleType::Read;
@@ -1654,7 +1654,7 @@ void m6502::tick()
             if(!x) flags |= 0x02;
 			else flags &= 0xFD;
 			if(x & 0x80) flags |= 0x80;
-			else flags &= 0xFD;
+			else flags &= 0x7F;
             cycle=0;
             execing = false;
             cycletype = CycleType::Read;
@@ -1686,14 +1686,13 @@ void m6502::tick()
 			rb(pc);
 			if(!(flags & 0x02))
 			{
-				tmp3 = pc + tmp1;
-				pc = (pc & 0xFF00) | ((pc + tmp1) & 0xFF);
+				tmp3 = pc + (s8)tmp1;
+				pc = (pc & 0xFF00) | ((pc + (s8)tmp1) & 0xFF);
 				cycle++;
 				cycletype = CycleType::Read;
 			}
 			else
 			{
-				pc++;
 				cycle=0;
 				execing=false;
 				cycletype = CycleType::Read;
@@ -1961,8 +1960,8 @@ void m6502::tick()
 			rb(pc);
 			if(flags & 0x02)
 			{
-				tmp3 = pc + tmp1;
-				pc = (pc & 0xFF00) | ((pc + tmp1) & 0xFF);
+				tmp3 = pc + (s8)tmp1;
+				pc = (pc & 0xFF00) | ((pc + (s8)tmp1) & 0xFF);
 				cycle++;
 				cycletype = CycleType::Read;
 			}
