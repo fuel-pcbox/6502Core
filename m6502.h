@@ -25,8 +25,8 @@ struct m6502
     bool so;
 
     bool execing;
-	
-	bool phi2;
+
+    bool phi2;
 
     int cycle;
     CycleType cycletype;
@@ -46,7 +46,7 @@ struct m6502
     void init();
 
     void tick();
-	void halftick();
+    void halftick();
 };
 
 #endif //M6502_H
