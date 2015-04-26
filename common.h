@@ -1,6 +1,7 @@
 #ifndef COMMON_H
 #define COMMON_H
 
+#include <cstdio>
 #include <cstdint>
 
 typedef uint8_t u8;

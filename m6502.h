@@ -23,6 +23,8 @@ struct m6502
     bool nmi;
     bool rdy;
     bool so;
+    
+    bool bcd; //Is BCD supported? Used for things like the NES.
 
     bool execing;
 
@@ -43,7 +45,7 @@ struct m6502
     function<u8(u16)> rb;
     function<void(u16,u8)> wb;
 
-    void init();
+    void init(bool _bcd);
 
     void tick();
     void halftick();
