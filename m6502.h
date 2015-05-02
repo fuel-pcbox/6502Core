@@ -33,7 +33,7 @@ struct m6502
     int cycle;
     CycleType cycletype;
 
-    u8 op;
+    u16 op;
 
     u8 tmp1;
     u8 tmp2;
