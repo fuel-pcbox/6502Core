@@ -918,6 +918,70 @@ void m6502::tick()
             }
             break;
         }
+        case 0x19:
+        {
+            switch(cycle)
+            {
+            case 0:
+            {
+                cycle++;
+                cycletype = CycleType::Read;
+                break;
+            }
+            case 1:
+            {
+                tmp3 = rb(pc);
+                pc++;
+                cycle++;
+                cycletype = CycleType::Read;
+                break;
+            }
+            case 2:
+            {
+                tmp3 |= (rb(pc)<<8);
+                tmp4 = tmp3 + y;
+                tmp3 = (tmp3 & 0xFF00) | ((tmp3 + y) & 0xFF);
+                pc++;
+                cycle++;
+                cycletype = CycleType::Read;
+                break;
+            }
+            case 3:
+            {
+                tmp1 = rb(tmp3);
+                if(tmp3 != tmp4)
+                {
+                    cycle++;
+                    cycletype = CycleType::Read;
+                }
+                else
+                {
+                    a |= tmp1;
+                    if(!a) flags |= 0x02;
+                    else flags &= 0xFD;
+                    if(a & 0x80) flags |= 0x80;
+                    else flags &= 0x7F;
+                    cycle=0;
+                    execing=false;
+                    cycletype = CycleType::Read;
+                }
+                break;
+            }
+            case 4:
+            {
+                a |= rb(tmp4);
+                if(!a) flags |= 0x02;
+                else flags &= 0xFD;
+                if(a & 0x80) flags |= 0x80;
+                else flags &= 0x7F;
+                cycle=0;
+                execing=false;
+                cycletype = CycleType::Read;
+                break;
+            }
+            }
+            break;
+        }
         case 0x20:
         {
             switch(cycle)
@@ -1395,7 +1459,7 @@ void m6502::tick()
                         a += 0x60;
                     }
                 }
-                
+
                 if(res1 & 0x80) flags |= 0x80;
                 else flags &= 0x7f;
                 if(res1 == 0) flags |= 0x02;
@@ -1567,7 +1631,7 @@ void m6502::tick()
                 if(!y) flags |= 0x02;
                 else flags &= 0xFD;
                 if(y & 0x80) flags |= 0x80;
-                else flags &= 0xFD;
+                else flags &= 0x7F;
                 cycle=0;
                 execing = false;
                 cycletype = CycleType::Read;
@@ -2730,13 +2794,14 @@ void m6502::tick()
             }
             case 1:
             {
-                tmp1 = y - rb(pc);
+                tmp1 = rb(pc);
+                tmp2 = y - tmp1;
                 pc++;
-                if(!tmp1) flags |= 0x02;
+                if(!tmp2) flags |= 0x02;
                 else flags &= 0xFD;
-                if(tmp1 & 0x80) flags |= 0x80;
+                if(tmp2 & 0x80) flags |= 0x80;
                 else flags &= 0x7F;
-                if(tmp1>y) flags |= 0x01;
+                if(y >= tmp1) flags |= 0x01;
                 else flags &= 0xFE;
                 cycle=0;
                 execing = false;
@@ -2832,13 +2897,14 @@ void m6502::tick()
             }
             case 1:
             {
-                tmp1 = a - rb(pc);
+                tmp1 = rb(pc);
+                tmp2 = a - tmp1;
                 pc++;
-                if(!tmp1) flags |= 0x02;
+                if(!tmp2) flags |= 0x02;
                 else flags &= 0xFD;
-                if(tmp1 & 0x80) flags |= 0x80;
+                if(tmp2 & 0x80) flags |= 0x80;
                 else flags &= 0x7F;
-                if(tmp1>a) flags |= 0x01;
+                if(a >= tmp1) flags |= 0x01;
                 else flags &= 0xFE;
                 cycle=0;
                 execing = false;
@@ -3235,13 +3301,14 @@ void m6502::tick()
             }
             case 1:
             {
-                tmp1 = x - rb(pc);
+                tmp1 = rb(pc);
+                tmp2 = x - tmp1;
                 pc++;
-                if(!tmp1) flags |= 0x02;
+                if(!tmp2) flags |= 0x02;
                 else flags &= 0xFD;
-                if(tmp1 & 0x80) flags |= 0x80;
+                if(tmp2 & 0x80) flags |= 0x80;
                 else flags &= 0x7F;
-                if(tmp1>x) flags |= 0x01;
+                if(x >= tmp1) flags |= 0x01;
                 else flags &= 0xFE;
                 cycle=0;
                 execing = false;
@@ -3270,12 +3337,13 @@ void m6502::tick()
             }
             case 2:
             {
-                tmp1 = x - rb(tmp1);
-                if(!tmp1) flags |= 0x02;
+                tmp1 = rb(tmp1);
+                tmp2 = x - tmp1;
+                if(!tmp2) flags |= 0x02;
                 else flags &= 0xFD;
-                if(tmp1 & 0x80) flags |= 0x80;
+                if(tmp2 & 0x80) flags |= 0x80;
                 else flags &= 0x7F;
-                if(tmp1>x) flags |= 0x01;
+                if(x >= tmp1) flags |= 0x01;
                 else flags &= 0xFE;
                 cycle=0;
                 execing = false;
